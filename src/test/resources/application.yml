@@ -1,0 +1,15 @@
+spring:
+  jpa:
+    hibernate:
+      naming:
+        physical-strategy: ru.cns.util.jpa.hibernate.CustomNamingStrategyForTableNames
+    properties:
+      hibernate:
+        generate_statistics: true
+        format_sql: true
+    open-in-view: false
+    show-sql: true
+
+logging:
+  level:
+    org.hibernate.stat: debug

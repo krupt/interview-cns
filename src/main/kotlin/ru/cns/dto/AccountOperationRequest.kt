@@ -4,8 +4,8 @@ import ru.cns.validation.ValidAccountNumber
 import ru.cns.validation.ValidAmount
 
 data class AccountOperationRequest(
-        @ValidAccountNumber
+        @field:ValidAccountNumber
         val accountNumber: String,
-        @ValidAmount
+        @field:ValidAmount
         val amount: Double
 )

@@ -6,7 +6,7 @@ import javax.persistence.*
 data class AccountEntity(
         @Id
         @GeneratedValue(strategy = GenerationType.IDENTITY)
-        val id: Long?,
+        val id: Long? = null,
         @Column(length = 20, nullable = false, unique = true, updatable = false)
         val account: String,
         val balance: Double = 0.0
