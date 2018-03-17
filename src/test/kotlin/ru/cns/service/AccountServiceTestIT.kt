@@ -1,5 +1,6 @@
 package ru.cns.service
 
+import com.vladmihalcea.sql.SQLStatementCountValidator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Before
@@ -11,6 +12,7 @@ import org.springframework.test.context.junit4.SpringRunner
 import ru.cns.TestJpaConfiguration
 import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
+import ru.cns.errors.AccountAlreadyExistsException
 import ru.cns.errors.InsufficientFundsException
 import ru.cns.repository.AccountRepository
 import java.util.concurrent.Executors
@@ -18,27 +20,55 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(SpringRunner::class)
 @SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class])
-class AccountServiceConcurrentJpaTestIT {
+class AccountServiceTestIT {
 
     @Autowired
     private lateinit var accountService: AccountService
 
     @Autowired
-    private lateinit var accounRepository: AccountRepository
+    private lateinit var accountRepository: AccountRepository
 
     private val accountNumber = "40817840291234598765"
 
     @Before
     fun setUp() {
-        accounRepository.delete(
-                accounRepository.findOneByAccount(accountNumber)!!
-        )
+        accountRepository.findOneByAccount(accountNumber)
+                ?.let { accountRepository.delete(it) }
+
         accountService.create(
                 CreateAccountRequest(accountNumber)
         )
         accountService.deposit(
                 AccountOperationRequest(accountNumber, 500.23)
         )
+        SQLStatementCountValidator.reset()
+    }
+
+    @Test(expected = AccountAlreadyExistsException::class)
+    fun testCreateAlreadyExistingAccount() {
+        accountService.create(
+                CreateAccountRequest(accountNumber)
+        )
+    }
+
+    @Test
+    fun testThatWithdrawalDoingInOneTransaction() {
+        accountService.withdrawal(
+                AccountOperationRequest(accountNumber, 156.0)
+        )
+
+        SQLStatementCountValidator.assertSelectCount(1)
+        SQLStatementCountValidator.assertUpdateCount(1)
+    }
+
+    @Test
+    fun testThatDepositDoingInOneTransaction() {
+        accountService.deposit(
+                AccountOperationRequest(accountNumber, 15.0)
+        )
+
+        SQLStatementCountValidator.assertSelectCount(1)
+        SQLStatementCountValidator.assertUpdateCount(1)
     }
 
     @Test
@@ -61,15 +91,15 @@ class AccountServiceConcurrentJpaTestIT {
         }
 
         service.shutdown()
-        service.awaitTermination(1, TimeUnit.SECONDS)
+        service.awaitTermination(5, TimeUnit.SECONDS)
 
         val accountBalance = accountService.get(accountNumber)
-        assertEquals(249.23, accountBalance.balance, 0.0)
+        assertEquals(249.23, accountBalance.balance, 0.001)
         assertNotNull("InsufficientFundsException must be thrown", exception[0])
     }
 
     @Test
-    fun tesSuccessfultParallelWithdrawal() {
+    fun tesSuccessfulParallelWithdrawal() {
         val service = Executors.newFixedThreadPool(2)
 
         for (i in 1..2) {
@@ -78,13 +108,13 @@ class AccountServiceConcurrentJpaTestIT {
                         AccountOperationRequest(accountNumber, 249.0)
                 )
             })
-
-            service.shutdown()
-            service.awaitTermination(1, TimeUnit.SECONDS)
-
-            val accountBalance = accountService.get(accountNumber)
-            assertEquals(2.23, accountBalance.balance, 0.0)
         }
+
+        service.shutdown()
+        service.awaitTermination(5, TimeUnit.SECONDS)
+
+        val accountBalance = accountService.get(accountNumber)
+        assertEquals(2.23, accountBalance.balance, 0.001)
     }
 
     @Test
@@ -100,9 +130,33 @@ class AccountServiceConcurrentJpaTestIT {
         }
 
         service.shutdown()
-        service.awaitTermination(1, TimeUnit.SECONDS)
+        service.awaitTermination(5, TimeUnit.SECONDS)
 
         val accountBalance = accountService.get(accountNumber)
-        assertEquals(1013.51, accountBalance.balance, 0.0)
+        assertEquals(1013.51, accountBalance.balance, 0.001)
     }
+
+    @Test
+    fun testSuccessfulParallelWithdrawalAndDeposit() {
+        val service = Executors.newFixedThreadPool(2)
+
+        service.submit({
+            accountService.withdrawal(
+                    AccountOperationRequest(accountNumber, 249.0)
+            )
+        })
+
+        service.submit({
+            accountService.deposit(
+                    AccountOperationRequest(accountNumber, 256.64)
+            )
+        })
+
+        service.shutdown()
+        service.awaitTermination(5, TimeUnit.SECONDS)
+
+        val accountBalance = accountService.get(accountNumber)
+        assertEquals(507.87, accountBalance.balance, 0.001)
+    }
+
 }

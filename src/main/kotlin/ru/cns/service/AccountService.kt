@@ -3,6 +3,7 @@ package ru.cns.service
 import mu.KLogging
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import ru.cns.domain.AccountEntity
 import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
@@ -36,11 +37,12 @@ class AccountService(
         }
     }
 
+    @Transactional
     fun withdrawal(withdrawalRequest: AccountOperationRequest): AccountBalance {
         logger.info("Withdrawal {} on account '{}'",
                 withdrawalRequest.amount, withdrawalRequest.accountNumber)
 
-        val accountEntity = accountRepository.findOneByAccount(withdrawalRequest.accountNumber)
+        val accountEntity = accountRepository.findOneAndLockByAccount(withdrawalRequest.accountNumber)
                 ?: throw AccountNotFoundException(withdrawalRequest.accountNumber)
 
         if (accountEntity.balance < withdrawalRequest.amount) {
@@ -56,11 +58,12 @@ class AccountService(
         )
     }
 
+    @Transactional
     fun deposit(depositRequest: AccountOperationRequest): AccountBalance {
         logger.info("Deposit {} to account '{}'", depositRequest.amount,
                 depositRequest.accountNumber)
 
-        val accountEntity = accountRepository.findOneByAccount(depositRequest.accountNumber)
+        val accountEntity = accountRepository.findOneAndLockByAccount(depositRequest.accountNumber)
                 ?: throw AccountNotFoundException(depositRequest.accountNumber)
 
         val newBalance = accountEntity.balance + depositRequest.amount
