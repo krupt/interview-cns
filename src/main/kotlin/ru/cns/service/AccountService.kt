@@ -1,15 +1,18 @@
 package ru.cns.service
 
 import mu.KLogging
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.cns.domain.AccountEntity
 import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
+import ru.cns.dto.TransferOperationRequest
 import ru.cns.errors.AccountAlreadyExistsException
 import ru.cns.errors.AccountNotFoundException
 import ru.cns.errors.InsufficientFundsException
+import ru.cns.errors.SelfTransferNotAllowedException
 import ru.cns.model.AccountBalance
 import ru.cns.repository.AccountRepository
 
@@ -19,6 +22,9 @@ class AccountService(
 ) {
 
     private companion object : KLogging()
+
+    @Autowired
+    private lateinit var self: AccountService
 
     fun get(accountNumber: String) =
             accountRepository.findOneByAccount(accountNumber)?.let { AccountBalance.fromEntity(it) }
@@ -73,5 +79,29 @@ class AccountService(
                         accountEntity.copy(balance = newBalance)
                 )
         )
+    }
+
+    @Transactional
+    fun transfer(transferOperationRequest: TransferOperationRequest): AccountBalance {
+        logger.info("Transfer {} from '{}' to '{}'", transferOperationRequest.amount,
+                transferOperationRequest.sourceAccountNumber,
+                transferOperationRequest.targetAccountNumber)
+
+        if (transferOperationRequest.sourceAccountNumber == transferOperationRequest
+                        .targetAccountNumber) {
+            throw SelfTransferNotAllowedException()
+        }
+
+        val sourceAccountBalance = self.withdrawal(
+                AccountOperationRequest(transferOperationRequest.sourceAccountNumber,
+                        transferOperationRequest.amount)
+        )
+
+        self.deposit(
+                AccountOperationRequest(transferOperationRequest.targetAccountNumber,
+                        transferOperationRequest.amount)
+        )
+
+        return sourceAccountBalance
     }
 }

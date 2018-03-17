@@ -5,6 +5,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.argThat
 import org.mockito.BDDMockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -12,8 +13,10 @@ import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.test.context.junit4.SpringRunner
 import ru.cns.domain.AccountEntity
 import ru.cns.dto.AccountOperationRequest
+import ru.cns.dto.TransferOperationRequest
 import ru.cns.errors.AccountNotFoundException
 import ru.cns.errors.InsufficientFundsException
+import ru.cns.errors.SelfTransferNotAllowedException
 import ru.cns.repository.AccountRepository
 
 @RunWith(SpringRunner::class)
@@ -31,6 +34,8 @@ class AccountServiceTest {
     @Before
     fun setUp() {
         BDDMockito.given(accountRepository.findOneByAccount("40817810401234567890"))
+                .willReturn(testAccountEntity)
+        BDDMockito.given(accountRepository.findOneAndLockByAccount("40817810401234567890"))
                 .willReturn(testAccountEntity)
 
         BDDMockito.given(accountRepository.save(any(AccountEntity::class.java)))
@@ -67,7 +72,7 @@ class AccountServiceTest {
     fun testSuccessfulGet() {
         val accountBalance = accountService.get("40817810401234567890")
         assertEquals("40817810401234567890", accountBalance.accountNumber)
-        assertEquals(11.1, accountBalance.balance, 0.0)
+        assertEquals(11.1, accountBalance.balance, 0.001)
     }
 
     @Test
@@ -76,7 +81,7 @@ class AccountServiceTest {
                 AccountOperationRequest("40817810401234567890", 5.0)
         )
         assertEquals("40817810401234567890", accountBalance.accountNumber)
-        assertEquals(6.1, accountBalance.balance, 0.0)
+        assertEquals(6.1, accountBalance.balance, 0.001)
     }
 
     @Test
@@ -85,6 +90,44 @@ class AccountServiceTest {
                 AccountOperationRequest("40817810401234567890", 11.11)
         )
         assertEquals("40817810401234567890", accountBalance.accountNumber)
-        assertEquals(22.21, accountBalance.balance, 0.0)
+        assertEquals(22.21, accountBalance.balance, 0.001)
+    }
+
+    @Test
+    fun testSuccessfulTransfer() {
+        val transferSourceAccountEntity = AccountEntity(43412, "40817978071234567123", 578.85)
+        BDDMockito.given(accountRepository.findOneAndLockByAccount("40817978071234567123"))
+                .willReturn(transferSourceAccountEntity)
+
+        val targetAccountEntity = Array<AccountEntity?>(1, { null })
+        BDDMockito.given(accountRepository.save(
+                argThat({ accountEntity: AccountEntity ->
+                    accountEntity.account == "40817810401234567890"
+                })
+        )).will {
+            targetAccountEntity[0] = it.arguments[0] as AccountEntity?
+            return@will it.arguments[0]
+        }
+
+        val sourceAccountBalance = accountService.transfer(
+                TransferOperationRequest("40817978071234567123",
+                        "40817810401234567890",
+                        543.21
+                )
+        )
+
+        assertEquals("40817978071234567123", sourceAccountBalance.accountNumber)
+        assertEquals(35.64, sourceAccountBalance.balance, 0.001)
+
+        assertEquals("40817810401234567890", targetAccountEntity[0]!!.account)
+        assertEquals(554.31, targetAccountEntity[0]!!.balance, 0.001)
+    }
+
+    @Test(expected = SelfTransferNotAllowedException::class)
+    fun testTransferOnSameAccountFailed() {
+        accountService.transfer(
+                TransferOperationRequest("40817810401234567890",
+                        "40817810401234567890", 7.23)
+        )
     }
 }

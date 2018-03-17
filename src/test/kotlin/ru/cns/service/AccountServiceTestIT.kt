@@ -158,5 +158,4 @@ class AccountServiceTestIT {
         val accountBalance = accountService.get(accountNumber)
         assertEquals(507.87, accountBalance.balance, 0.001)
     }
-
 }
