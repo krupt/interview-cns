@@ -3,16 +3,14 @@ package ru.cns.service
 import mu.KLogging
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.dao.PessimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import ru.cns.domain.AccountEntity
 import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
 import ru.cns.dto.TransferOperationRequest
-import ru.cns.errors.AccountAlreadyExistsException
-import ru.cns.errors.AccountNotFoundException
-import ru.cns.errors.InsufficientFundsException
-import ru.cns.errors.SelfTransferNotAllowedException
+import ru.cns.errors.*
 import ru.cns.model.AccountBalance
 import ru.cns.repository.AccountRepository
 
@@ -82,7 +80,7 @@ class AccountService(
     }
 
     @Transactional
-    fun transfer(transferOperationRequest: TransferOperationRequest): AccountBalance {
+    fun transfer(transferOperationRequest: TransferOperationRequest) {
         logger.info("Transfer {} from '{}' to '{}'", transferOperationRequest.amount,
                 transferOperationRequest.sourceAccountNumber,
                 transferOperationRequest.targetAccountNumber)
@@ -92,16 +90,20 @@ class AccountService(
             throw SelfTransferNotAllowedException()
         }
 
-        val sourceAccountBalance = self.withdrawal(
-                AccountOperationRequest(transferOperationRequest.sourceAccountNumber,
-                        transferOperationRequest.amount)
-        )
+        try {
+            self.withdrawal(
+                    AccountOperationRequest(transferOperationRequest.sourceAccountNumber,
+                            transferOperationRequest.amount)
+            )
 
-        self.deposit(
-                AccountOperationRequest(transferOperationRequest.targetAccountNumber,
-                        transferOperationRequest.amount)
-        )
-
-        return sourceAccountBalance
+            self.deposit(
+                    AccountOperationRequest(transferOperationRequest.targetAccountNumber,
+                            transferOperationRequest.amount)
+            )
+        } catch (e: PessimisticLockingFailureException) {
+            throw TransferFromSameAccountsToEachOtherException(
+                    transferOperationRequest.sourceAccountNumber,
+                    transferOperationRequest.targetAccountNumber)
+        }
     }
 }

@@ -13,9 +13,11 @@ import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
 import ru.cns.dto.TransferOperationRequest
 import ru.cns.errors.AccountNotFoundException
+import ru.cns.errors.TransferFromSameAccountsToEachOtherException
 import ru.cns.repository.AccountRepository
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(SpringRunner::class)
 @SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class])
@@ -86,28 +88,100 @@ class AccountServiceTransferTestIT {
         assertEquals(17720.81, targetAccountBalance, 0.001)
     }
 
+    @Test
+    fun testSuccessfulParallelTransfer() {
+        val service = Executors.newFixedThreadPool(2)
+
+        service.submit({
+            accountService.transfer(
+                    TransferOperationRequest(
+                            sourceAccountNumber, targetAccountNumber, 147.24
+                    )
+            )
+        })
+
+        service.submit({
+            accountService.transfer(
+                    TransferOperationRequest(
+                            sourceAccountNumber, targetAccountNumber, 341.47
+                    )
+            )
+        })
+
+        service.shutdown()
+        service.awaitTermination(5, TimeUnit.SECONDS)
+
+        val (_, sourceAccountBalance) = accountService.get(sourceAccountNumber)
+        assertEquals(11.52, sourceAccountBalance, 0.001)
+
+        val (_, targetAccountBalance) = accountService.get(targetAccountNumber)
+        assertEquals(17762.28, targetAccountBalance, 0.001)
+    }
+
     /**
-     * Oracle and Postgres have dead-lock detection
+     * It's very complicated test that check correct cases parallel 'transfer' with potential
+     * dead-lock.
+     * Case 1: first transfer failed, but second transfer successful
+     * Case 2: second transfer failed, but first transfer successful
+     * Case 3: both transfers failed
+     * Case 4: both transfers successfully completed
      */
     @Test
     fun testTransferDeadlock() {
         val service = Executors.newFixedThreadPool(2)
 
+        val firstTransferAmount = 432.12
+        val secondTransferAmount = 326.87
+
+        val firstTransferFailed = AtomicBoolean(false)
+        val secondTransferFailed = AtomicBoolean(false)
+
         service.submit({
-            accountService.transfer(
-                    TransferOperationRequest(sourceAccountNumber, targetAccountNumber, 432.12)
-            )
+            try {
+                accountService.transfer(
+                        TransferOperationRequest(sourceAccountNumber, targetAccountNumber,
+                                firstTransferAmount)
+                )
+            } catch (e: TransferFromSameAccountsToEachOtherException) {
+                println("!!! Source -> Target failed")
+                firstTransferFailed.set(true)
+            }
         })
 
         service.submit({
-            accountService.transfer(
-                    TransferOperationRequest(targetAccountNumber, sourceAccountNumber, 326.87)
-            )
+            try {
+                accountService.transfer(
+                        TransferOperationRequest(targetAccountNumber, sourceAccountNumber,
+                                secondTransferAmount)
+                )
+            } catch (e: TransferFromSameAccountsToEachOtherException) {
+                println("!!! Target -> Source failed")
+                secondTransferFailed.set(true)
+            }
         })
 
         service.shutdown()
-        service.awaitTermination(1, TimeUnit.MINUTES)
+        service.awaitTermination(10, TimeUnit.SECONDS)
 
-        TODO("Add some checks")
+        var sourceAccountTransferAmount = 0.0
+        var targetAccountTransferAmount = 0.0
+
+        if (!firstTransferFailed.get()) {
+            sourceAccountTransferAmount += -firstTransferAmount
+            targetAccountTransferAmount += firstTransferAmount
+        }
+
+        if (!secondTransferFailed.get()) {
+            sourceAccountTransferAmount += secondTransferAmount
+            targetAccountTransferAmount += -secondTransferAmount
+        }
+
+        val (_, sourceAccountBalance) = accountService.get(sourceAccountNumber)
+        assertEquals(500.23 + sourceAccountTransferAmount,
+                sourceAccountBalance, 0.001)
+
+        val (_, targetAccountBalance) = accountService.get(targetAccountNumber)
+        assertEquals(17273.57 + targetAccountTransferAmount,
+                targetAccountBalance, 0.001)
     }
 }

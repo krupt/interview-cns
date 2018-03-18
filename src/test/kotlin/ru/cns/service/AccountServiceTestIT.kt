@@ -17,6 +17,7 @@ import ru.cns.errors.InsufficientFundsException
 import ru.cns.repository.AccountRepository
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(SpringRunner::class)
 @SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class])
@@ -75,8 +76,7 @@ class AccountServiceTestIT {
     fun testParallelWithdrawalFailed() {
         val service = Executors.newFixedThreadPool(2)
 
-        // Using lambda hack from Java
-        val exception = Array<InsufficientFundsException?>(1, { null })
+        val exception = AtomicReference<InsufficientFundsException?>()
 
         for (i in 1..2) {
             service.submit({
@@ -85,7 +85,7 @@ class AccountServiceTestIT {
                             AccountOperationRequest(accountNumber, 251.0)
                     )
                 } catch (e: InsufficientFundsException) {
-                    exception[0] = e
+                    exception.set(e)
                 }
             })
         }
@@ -95,7 +95,7 @@ class AccountServiceTestIT {
 
         val accountBalance = accountService.get(accountNumber)
         assertEquals(249.23, accountBalance.balance, 0.001)
-        assertNotNull("InsufficientFundsException must be thrown", exception[0])
+        assertNotNull("InsufficientFundsException must be thrown", exception.get())
     }
 
     @Test

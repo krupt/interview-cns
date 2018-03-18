@@ -1,8 +1,10 @@
 package ru.cns.resource
 
+import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
+import ru.cns.dto.TransferOperationRequest
 import ru.cns.service.AccountService
 import javax.validation.Valid
 
@@ -28,4 +30,12 @@ class AccountResource(
     @PostMapping("deposit")
     fun deposit(@Valid @RequestBody depositRequest: AccountOperationRequest) =
             accountService.deposit(depositRequest)
+
+    @PostMapping("transfer")
+    fun transfer(@Valid
+                 @RequestBody
+                 transferOperationRequest: TransferOperationRequest): ResponseEntity<String> {
+        accountService.transfer(transferOperationRequest)
+        return ResponseEntity.ok("Transfer successfully completed")
+    }
 }
