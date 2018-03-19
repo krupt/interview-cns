@@ -2,7 +2,7 @@ spring:
   jpa:
     hibernate:
       naming:
-        physical-strategy: ru.cns.util.jpa.hibernate.CustomNamingStrategyForTableNames
+        physical-strategy: ru.cns.util.jpa.hibernate.CustomPhysicalNamingStrategy
     properties:
       hibernate:
 #        generate_statistics: true

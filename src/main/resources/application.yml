@@ -5,6 +5,6 @@ spring:
   jpa:
     hibernate:
       naming:
-        physical-strategy: ru.cns.util.jpa.hibernate.CustomNamingStrategyForTableNames
+        physical-strategy: ru.cns.util.jpa.hibernate.CustomPhysicalNamingStrategy
       ddl-auto: create
     open-in-view: false
