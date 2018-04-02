@@ -8,3 +8,6 @@ spring:
         physical-strategy: ru.cns.util.jpa.hibernate.CustomPhysicalNamingStrategy
       ddl-auto: create
     open-in-view: false
+  h2:
+    console:
+      enabled: true

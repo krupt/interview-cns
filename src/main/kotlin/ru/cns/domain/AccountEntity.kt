@@ -10,4 +10,8 @@ data class AccountEntity(
         @Column(length = 20, nullable = false, unique = true, updatable = false)
         val account: String,
         val balance: Double = 0.0
-)
+) {
+    companion object {
+        val systemAccountEntity = AccountEntity(0, "00000000000000000000")
+    }
+}

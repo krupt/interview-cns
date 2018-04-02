@@ -9,12 +9,12 @@ import ru.cns.service.AccountService
 import javax.validation.Valid
 
 @RestController
-@RequestMapping("api/account")
+@RequestMapping("api/accounts")
 class AccountResource(
         val accountService: AccountService
 ) {
 
-    @PostMapping("create")
+    @PostMapping
     fun createNewAccount(@Valid @RequestBody createRequest: CreateAccountRequest) =
             accountService.create(createRequest)
 

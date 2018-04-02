@@ -9,8 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.junit4.SpringRunner
 import ru.cns.TestJpaConfiguration
-import ru.cns.dto.AccountOperationRequest
-import ru.cns.dto.CreateAccountRequest
+import ru.cns.domain.AccountEntity
 import ru.cns.dto.TransferOperationRequest
 import ru.cns.errors.AccountNotFoundException
 import ru.cns.errors.TransferFromSameAccountsToEachOtherException
@@ -20,7 +19,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(SpringRunner::class)
-@SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class])
+@SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class,
+    TransactionService::class])
 class AccountServiceTransferTestIT {
 
     @Autowired
@@ -34,24 +34,14 @@ class AccountServiceTransferTestIT {
 
     @Before
     fun setUp() {
-        accountRepository.findOneByAccount(sourceAccountNumber)
-                ?.let { accountRepository.delete(it) }
-
-        accountService.create(
-                CreateAccountRequest(sourceAccountNumber)
-        )
-        accountService.deposit(
-                AccountOperationRequest(sourceAccountNumber, 500.23)
+        accountRepository.save(
+                accountRepository.findOneByAccount(sourceAccountNumber)?.copy(balance = 500.23)
+                        ?: AccountEntity(account = sourceAccountNumber, balance = 500.23)
         )
 
-        accountRepository.findOneByAccount(targetAccountNumber)
-                ?.let { accountRepository.delete(it) }
-
-        accountService.create(
-                CreateAccountRequest(targetAccountNumber)
-        )
-        accountService.deposit(
-                AccountOperationRequest(targetAccountNumber, 17273.57)
+        accountRepository.save(
+                accountRepository.findOneByAccount(targetAccountNumber)?.copy(balance = 17273.57)
+                        ?: AccountEntity(account = targetAccountNumber, balance = 17273.57)
         )
     }
 
@@ -68,7 +58,7 @@ class AccountServiceTransferTestIT {
             assertEquals("Account '323344324423' not found", e.message)
 
             // Check that source account balance didn't change
-            val (_, sourceAccountBalance) = accountService.get(sourceAccountNumber)
+            val (_, _, sourceAccountBalance) = accountService.get(sourceAccountNumber)
             assertEquals(500.23, sourceAccountBalance, 0.001)
         }
     }
@@ -81,10 +71,10 @@ class AccountServiceTransferTestIT {
                 )
         )
 
-        val (_, sourceAccountBalance) = accountService.get(sourceAccountNumber)
+        val (_, _, sourceAccountBalance) = accountService.get(sourceAccountNumber)
         assertEquals(52.99, sourceAccountBalance, 0.001)
 
-        val (_, targetAccountBalance) = accountService.get(targetAccountNumber)
+        val (_, _, targetAccountBalance) = accountService.get(targetAccountNumber)
         assertEquals(17720.81, targetAccountBalance, 0.001)
     }
 
@@ -111,10 +101,10 @@ class AccountServiceTransferTestIT {
         service.shutdown()
         service.awaitTermination(5, TimeUnit.SECONDS)
 
-        val (_, sourceAccountBalance) = accountService.get(sourceAccountNumber)
+        val (_, _, sourceAccountBalance) = accountService.get(sourceAccountNumber)
         assertEquals(11.52, sourceAccountBalance, 0.001)
 
-        val (_, targetAccountBalance) = accountService.get(targetAccountNumber)
+        val (_, _, targetAccountBalance) = accountService.get(targetAccountNumber)
         assertEquals(17762.28, targetAccountBalance, 0.001)
     }
 
@@ -176,11 +166,11 @@ class AccountServiceTransferTestIT {
             targetAccountTransferAmount += -secondTransferAmount
         }
 
-        val (_, sourceAccountBalance) = accountService.get(sourceAccountNumber)
+        val (_, _, sourceAccountBalance) = accountService.get(sourceAccountNumber)
         assertEquals(500.23 + sourceAccountTransferAmount,
                 sourceAccountBalance, 0.001)
 
-        val (_, targetAccountBalance) = accountService.get(targetAccountNumber)
+        val (_, _, targetAccountBalance) = accountService.get(targetAccountNumber)
         assertEquals(17273.57 + targetAccountTransferAmount,
                 targetAccountBalance, 0.001)
     }

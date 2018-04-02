@@ -1,10 +1,11 @@
 package ru.cns.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.*
 import org.mockito.BDDMockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -28,6 +29,9 @@ class AccountServiceTest {
     @MockBean
     private lateinit var accountRepository: AccountRepository
 
+    @MockBean
+    private lateinit var transactionService: TransactionService
+
     private val testAccountEntity = AccountEntity(123, "40817810401234567890", 11.1)
 
     @Before
@@ -37,7 +41,7 @@ class AccountServiceTest {
         BDDMockito.given(accountRepository.findOneAndLockByAccount("40817810401234567890"))
                 .willReturn(testAccountEntity)
 
-        BDDMockito.given(accountRepository.save(any(AccountEntity::class.java)))
+        BDDMockito.given(accountRepository.save(any<AccountEntity>()))
                 .will { it.arguments[0] }
     }
 
@@ -46,25 +50,46 @@ class AccountServiceTest {
         accountService.get("2312312312312312312")
     }
 
-    @Test(expected = AccountNotFoundException::class)
+    @Test
     fun testWithdrawalOnNonExistingAccount() {
-        accountService.withdrawal(
-                AccountOperationRequest("1231231233232", 1.0)
-        )
+        try {
+            accountService.withdrawal(
+                    AccountOperationRequest("1231231233232", 1.0)
+            )
+        } catch (e: AccountNotFoundException) {
+            BDDMockito.verify(transactionService, BDDMockito.never())
+                    .create(anyLong(), anyLong(), anyDouble())
+            return
+        }
+        fail("AccountNotFoundException must be thrown")
     }
 
-    @Test(expected = AccountNotFoundException::class)
+    @Test
     fun testDepositOnNonExistingAccount() {
-        accountService.deposit(
-                AccountOperationRequest("123123123123", 2.0)
-        )
+        try {
+            accountService.deposit(
+                    AccountOperationRequest("123123123123", 2.0)
+            )
+        } catch (e: AccountNotFoundException) {
+            BDDMockito.verify(transactionService, BDDMockito.never())
+                    .create(anyLong(), anyLong(), anyDouble())
+            return
+        }
+        fail("AccountNotFoundException must be thrown")
     }
 
-    @Test(expected = InsufficientFundsException::class)
+    @Test
     fun testWithdrawalOnAccountWithInsufficientFunds() {
-        accountService.withdrawal(
-                AccountOperationRequest("40817810401234567890", 11.11)
-        )
+        try {
+            accountService.withdrawal(
+                    AccountOperationRequest("40817810401234567890", 11.11)
+            )
+        } catch (e: InsufficientFundsException) {
+            BDDMockito.verify(transactionService, BDDMockito.never())
+                    .create(anyLong(), anyLong(), anyDouble())
+            return
+        }
+        fail("InsufficientFundsException must be thrown")
     }
 
     @Test
@@ -81,6 +106,13 @@ class AccountServiceTest {
         )
         assertEquals("40817810401234567890", accountBalance.accountNumber)
         assertEquals(6.1, accountBalance.balance, 0.001)
+
+        BDDMockito.verify(transactionService)
+                .create(
+                        eq(123L),
+                        eq(AccountEntity.systemAccountEntity.id!!),
+                        eq(5.0)
+                )
     }
 
     @Test
@@ -90,6 +122,13 @@ class AccountServiceTest {
         )
         assertEquals("40817810401234567890", accountBalance.accountNumber)
         assertEquals(22.21, accountBalance.balance, 0.001)
+
+        BDDMockito.verify(transactionService)
+                .create(
+                        eq(AccountEntity.systemAccountEntity.id!!),
+                        eq(123L),
+                        eq(11.11)
+                )
     }
 
     @Test
@@ -99,7 +138,7 @@ class AccountServiceTest {
                 .willReturn(transferSourceAccountEntity)
 
         val savedEntities = Array<AccountEntity?>(2, { null })
-        BDDMockito.given(accountRepository.save(any(AccountEntity::class.java)))
+        BDDMockito.given(accountRepository.save(any<AccountEntity>()))
                 .will {
                     val accountEntity = it.arguments[0] as AccountEntity
                     if (accountEntity.account == "40817978071234567123") {
@@ -125,13 +164,41 @@ class AccountServiceTest {
         val targetAccountEntity = savedEntities[1]!!
         assertEquals("40817810401234567890", targetAccountEntity.account)
         assertEquals(554.31, targetAccountEntity.balance, 0.001)
+
+        BDDMockito.verify(transactionService, BDDMockito.never())
+                .create(
+                        eq(43412L),
+                        eq(0L),
+                        eq(543.21)
+                )
+
+        BDDMockito.verify(transactionService, BDDMockito.never())
+                .create(
+                        eq(0L),
+                        eq(123L),
+                        eq(543.21)
+                )
+
+        BDDMockito.verify(transactionService)
+                .create(
+                        eq(43412L),
+                        eq(123L),
+                        eq(543.21)
+                )
     }
 
-    @Test(expected = SelfTransferNotAllowedException::class)
+    @Test
     fun testTransferOnSameAccountFailed() {
-        accountService.transfer(
-                TransferOperationRequest("40817810401234567890",
-                        "40817810401234567890", 7.23)
-        )
+        try {
+            accountService.transfer(
+                    TransferOperationRequest("40817810401234567890",
+                            "40817810401234567890", 7.23)
+            )
+        } catch (e: SelfTransferNotAllowedException) {
+            BDDMockito.verify(transactionService, BDDMockito.never())
+                    .create(anyLong(), anyLong(), anyDouble())
+            return
+        }
+        fail("SelfTransferNotAllowedException must be thrown")
     }
 }

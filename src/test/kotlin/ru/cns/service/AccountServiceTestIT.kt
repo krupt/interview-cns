@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.context.junit4.SpringRunner
 import ru.cns.TestJpaConfiguration
+import ru.cns.domain.AccountEntity
 import ru.cns.dto.AccountOperationRequest
 import ru.cns.dto.CreateAccountRequest
 import ru.cns.errors.AccountAlreadyExistsException
@@ -20,7 +21,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
 @RunWith(SpringRunner::class)
-@SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class])
+@SpringBootTest(classes = [TestJpaConfiguration::class, AccountService::class,
+    TransactionService::class])
 class AccountServiceTestIT {
 
     @Autowired
@@ -33,15 +35,11 @@ class AccountServiceTestIT {
 
     @Before
     fun setUp() {
-        accountRepository.findOneByAccount(accountNumber)
-                ?.let { accountRepository.delete(it) }
+        accountRepository.save(
+                accountRepository.findOneByAccount(accountNumber)?.copy(balance = 500.23)
+                        ?: AccountEntity(account = accountNumber, balance = 500.23)
+        )
 
-        accountService.create(
-                CreateAccountRequest(accountNumber)
-        )
-        accountService.deposit(
-                AccountOperationRequest(accountNumber, 500.23)
-        )
         SQLStatementCountValidator.reset()
     }
 
@@ -58,8 +56,12 @@ class AccountServiceTestIT {
                 AccountOperationRequest(accountNumber, 156.0)
         )
 
-        SQLStatementCountValidator.assertSelectCount(1)
+        // Select account and select sequence for transaction
+        SQLStatementCountValidator.assertSelectCount(2)
+        // Update account
         SQLStatementCountValidator.assertUpdateCount(1)
+        // Insert transaction
+        SQLStatementCountValidator.assertInsertCount(1)
     }
 
     @Test
@@ -68,8 +70,12 @@ class AccountServiceTestIT {
                 AccountOperationRequest(accountNumber, 15.0)
         )
 
-        SQLStatementCountValidator.assertSelectCount(1)
+        // Select account and select sequence for transaction
+        SQLStatementCountValidator.assertSelectCount(2)
+        // Update account
         SQLStatementCountValidator.assertUpdateCount(1)
+        // Insert transaction
+        SQLStatementCountValidator.assertInsertCount(1)
     }
 
     @Test
