@@ -56,8 +56,8 @@ class AccountServiceTestIT {
                 AccountOperationRequest(accountNumber, 156.0)
         )
 
-        // Select account and select sequence for transaction
-        SQLStatementCountValidator.assertSelectCount(2)
+        // Select account
+        SQLStatementCountValidator.assertSelectCount(1)
         // Update account
         SQLStatementCountValidator.assertUpdateCount(1)
         // Insert transaction
@@ -70,8 +70,8 @@ class AccountServiceTestIT {
                 AccountOperationRequest(accountNumber, 15.0)
         )
 
-        // Select account and select sequence for transaction
-        SQLStatementCountValidator.assertSelectCount(2)
+        // Select account
+        SQLStatementCountValidator.assertSelectCount(1)
         // Update account
         SQLStatementCountValidator.assertUpdateCount(1)
         // Insert transaction

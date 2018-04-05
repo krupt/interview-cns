@@ -1,7 +1,6 @@
 package ru.cns.service
 
 import mu.KLogging
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.dao.PessimisticLockingFailureException
 import org.springframework.stereotype.Service
@@ -21,9 +20,6 @@ class AccountService(
 ) {
 
     private companion object : KLogging()
-
-    @Autowired
-    private lateinit var self: AccountService
 
     fun get(accountNumber: String) =
             accountRepository.findOneByAccount(accountNumber)?.let { Account.fromEntity(it) }
@@ -104,13 +100,13 @@ class AccountService(
         }
 
         try {
-            val (sourceAccountId, _, _) = self.withdrawal(
+            val (sourceAccountId, _, _) = withdrawal(
                     AccountOperationRequest(transferOperationRequest.sourceAccountNumber,
                             transferOperationRequest.amount),
                     false
             )
 
-            val (targetAccountId, _, _) = self.deposit(
+            val (targetAccountId, _, _) = deposit(
                     AccountOperationRequest(transferOperationRequest.targetAccountNumber,
                             transferOperationRequest.amount),
                     false

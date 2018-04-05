@@ -1,5 +1,6 @@
 package ru.cns.service
 
+import com.vladmihalcea.sql.SQLStatementCountValidator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.fail
 import org.junit.Before
@@ -64,12 +65,20 @@ class AccountServiceTransferTestIT {
     }
 
     @Test
-    fun testSuccessfulTransfer() {
+    fun testSuccessfulTransferAndCheckThatTransferDoingInOneTransaction() {
+        SQLStatementCountValidator.reset()
         accountService.transfer(
                 TransferOperationRequest(
                         sourceAccountNumber, targetAccountNumber, 447.24
                 )
         )
+
+        // Select source account, select target account
+        SQLStatementCountValidator.assertSelectCount(2)
+        // Update source account, update target account
+        SQLStatementCountValidator.assertUpdateCount(2)
+        // Insert transaction
+        SQLStatementCountValidator.assertInsertCount(1)
 
         val (_, _, sourceAccountBalance) = accountService.get(sourceAccountNumber)
         assertEquals(52.99, sourceAccountBalance, 0.001)

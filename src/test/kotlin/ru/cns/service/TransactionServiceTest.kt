@@ -32,6 +32,8 @@ class TransactionServiceTest {
 
     @Test
     fun testCreateTransaction() {
+        lateinit var transaction: TransactionEntity
+
         BDDMockito.given(accountRepository.getOne(anyLong()))
                 .will {
                     AccountEntity(it.arguments[0] as Long,
@@ -43,13 +45,15 @@ class TransactionServiceTest {
                     val transactionEntity = (it.arguments[0] as TransactionEntity).copy(1)
                     transactionEntity.timestamp = LocalDateTime.of(2018, Month.MARCH, 30,
                             18, 36, 40)
+                    transaction = transactionEntity
                     transactionEntity
                 }
 
-        val transaction = transactionService.create(123333, 3312, 44.31)
+        transactionService.create(123333, 3312, 44.31)
+
         assertEquals(1L, transaction.id)
-        assertEquals("00000000000000123333", transaction.sourceAccount)
-        assertEquals("00000000000000003312", transaction.targetAccount)
+        assertEquals(123333L, transaction.debit.id)
+        assertEquals(3312L, transaction.credit.id)
         assertEquals(44.31, transaction.amount, 0.001)
         assertEquals(LocalDateTime.of(2018, Month.MARCH, 30,
                 18, 36, 40),

@@ -12,4 +12,4 @@ spring:
 
 #logging:
 #  level:
-#    org.hibernate.stat: debug
+#    org.hibernate: trace
