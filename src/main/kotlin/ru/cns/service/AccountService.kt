@@ -85,25 +85,26 @@ class AccountService(
                 transferOperationRequest.sourceAccountNumber,
                 transferOperationRequest.targetAccountNumber)
 
-        if (transferOperationRequest.sourceAccountNumber == transferOperationRequest
-                        .targetAccountNumber) {
+        if (transferOperationRequest.sourceAccountNumber == transferOperationRequest.targetAccountNumber) {
             throw SelfTransferNotAllowedException()
         }
 
-        try {
+        if (transferOperationRequest.sourceAccountNumber > transferOperationRequest.targetAccountNumber) {
             self.withdrawal(
-                    AccountOperationRequest(transferOperationRequest.sourceAccountNumber,
-                            transferOperationRequest.amount)
+                AccountOperationRequest(transferOperationRequest.sourceAccountNumber, transferOperationRequest.amount)
             )
 
             self.deposit(
-                    AccountOperationRequest(transferOperationRequest.targetAccountNumber,
-                            transferOperationRequest.amount)
+                AccountOperationRequest(transferOperationRequest.targetAccountNumber, transferOperationRequest.amount)
             )
-        } catch (e: PessimisticLockingFailureException) {
-            throw TransferFromSameAccountsToEachOtherException(
-                    transferOperationRequest.sourceAccountNumber,
-                    transferOperationRequest.targetAccountNumber)
+        } else {
+            self.deposit(
+                AccountOperationRequest(transferOperationRequest.targetAccountNumber, transferOperationRequest.amount)
+            )
+
+            self.withdrawal(
+                AccountOperationRequest(transferOperationRequest.sourceAccountNumber, transferOperationRequest.amount)
+            )
         }
     }
 }
